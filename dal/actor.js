@@ -6,7 +6,7 @@ const ACTOR_FILE = './.data/actor.json'
 
 module.exports = class Actor {
 
-  constructor(obj) {
+  constructor(obj = null) {
     Object.assign(this, obj || { id: process.env.ME })
   }
 
