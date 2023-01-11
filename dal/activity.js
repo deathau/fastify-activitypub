@@ -1,14 +1,14 @@
-const fs = require('fs/promises')
+const fs = require('fs')
 const path = require('path')
 const matter = require('gray-matter')
 const uuid = require('short-uuid')
 
 async function createDirIfNotExists(path) {
   try{
-    if(!(await fs.stat(path)).isDirectory()) throw { code: "ENOENT" }
+    if(!(fs.statSync(path)).isDirectory()) throw { code: "ENOENT" }
   }
   catch(err) {
-    if(err.code === "ENOENT") await fs.mkdir(path, { recursive: true })
+    if(err.code === "ENOENT") fs.mkdirSync(path, { recursive: true })
   }
 }
 
@@ -89,7 +89,7 @@ module.exports = class Activity {
     delete activityOutput.content
 
     const mdContent = matter.stringify(body || '', activityOutput, { noRefs: true })
-    await fs.writeFile(this.datapath, mdContent)
+    fs.writeFileSync(this.datapath, mdContent)
   }
 
   ensureSummary() {

@@ -1,4 +1,4 @@
-const fs = require('fs/promises')
+const fs = require('fs')
 const IndieAuth = require('indieauth-helper')
 const { mf2 } = require("microformats-parser");
 
@@ -55,7 +55,7 @@ module.exports = class Actor {
 
   static async ReadActor() {
     try{
-      const data = await fs.readFile(ACTOR_FILE, 'utf8')
+      const data = fs.readFileSync(ACTOR_FILE, 'utf8')
       return new Actor(JSON.parse(data))
     }
     catch(err) {
@@ -65,6 +65,6 @@ module.exports = class Actor {
 
   static async WriteActor(actor) {
     if(actor.auth?.secret) delete actor.auth.secret // just in case
-    await fs.writeFile(ACTOR_FILE, JSON.stringify(actor, null, 2))
+    fs.writeFileSync(ACTOR_FILE, JSON.stringify(actor, null, 2))
   }
 }
