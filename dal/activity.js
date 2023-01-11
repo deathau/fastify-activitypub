@@ -1,16 +1,4 @@
-const fs = require('fs')
-const path = require('path')
-const matter = require('gray-matter')
-const uuid = require('short-uuid')
-
-async function createDirIfNotExists(path) {
-  try{
-    if(!(fs.statSync(path)).isDirectory()) throw { code: "ENOENT" }
-  }
-  catch(err) {
-    if(err.code === "ENOENT") fs.mkdirSync(path, { recursive: true })
-  }
-}
+const APObject = require('./object')
 
 function isObject(obj) {
   return obj === Object(obj);
@@ -31,66 +19,7 @@ function activityString(activity, verb, preposition = null, targetProp = 'target
   return ret
 }
 
-module.exports = class Activity {
-  id
-  actor
-  object
-  type
-  published
-
-  static folder = `outbox`
-  static path = path.join('.data', Activity.folder)
-
-  constructor(obj = {}) {
-    this["@context"] = "https://www.w3.org/ns/activitystreams"
-    if(obj) Object.assign(this, obj)
-  }
-
-  ensureId() {
-    if(!this.id) {
-      let date = new Date()
-      if(!this.published) this.published = date.toISOString()
-      else date = new Date(this.published)
-
-      const year = date.getFullYear()
-      const month = String(date.getMonth() + 1).padStart(2, '0')
-      const day = String(date.getDate()).padStart(2, '0')
-      const id = uuid.generate()
-
-      this.id = new URL([Activity.folder, year, month, day, id].join('/'), process.env.SERVER_URL).href
-    }
-  }
-
-  get datapath() {
-    let pathname = new URL(this.id).pathname
-    if(pathname.endsWith('/')) pathname = pathname.slice(0,-1)
-    pathname = path.join(...pathname.split('/'))
-    pathname = path.join(process.env.DATA_PATH, pathname)
-    pathname += '.md'
-    return pathname
-  }
-
-  get uuid() {
-    if(!this.id) return undefined
-    const segments = new URL(this.id).pathname.split('/');
-    return segments.pop() || segments.pop(); // Handle potential trailing slash
-  }
-
-  async write() {
-    
-    const dir = this.datapath.slice(0, -4 - this.uuid.length)
-    await createDirIfNotExists(dir)
-
-    // bto and bcc should not be saved
-    const activityOutput = Object.assign({}, this)
-    delete activityOutput.bto
-    delete activityOutput.bcc
-    const body = activityOutput.content ? activityOutput.content.html || activityOutput.content : activityOutput.summary || '';
-    delete activityOutput.content
-
-    const mdContent = matter.stringify(body || '', activityOutput, { noRefs: true })
-    fs.writeFileSync(this.datapath, mdContent)
-  }
+module.exports = class Activity extends APObject {
 
   ensureSummary() {
     if(!this.summary) switch(this.type.toLowerCase()) {
@@ -118,7 +47,7 @@ module.exports = class Activity {
       case 'remove':  this.summary = activityString(this, 'removed', 'from'); break;
       case 'tentativereject':
                       this.summary = activityString(this, 'tentively rejected'); break;
-      case 'aentativeaccept':
+      case 'tentativeaccept':
                       this.summary = activityString(this, 'tentively accepted'); break;
       case 'travel':  this.summary = activityString(this, 'travelled', 'to'); break;
       case 'undo':    this.summary = activityString(this, 'retracted'); break;
@@ -126,5 +55,28 @@ module.exports = class Activity {
       case 'view':    this.summary = activityString(this, 'viewed'); break;
       default:        this.summary = `did a thing: ${this.id}`; break;
     }
+  }
+
+  async process() {
+    let obj = await APObject.get(this.object)
+    switch(this.type.toLowerCase()) {
+      case 'create':
+        if(obj) throw 'object already exists'
+        else new APObject(this.object).write()
+        break;
+      case 'delete':
+        if(!obj) throw 'object does not exist'
+        else obj.delete()
+        break;
+      case 'update':
+        if(!obj) throw 'object does not exist'
+        else obj.update(this.object)
+    }
+
+    this.send()
+  }
+
+  async send() {
+    // TODO: implement ActivityPub spec for server to server
   }
 }

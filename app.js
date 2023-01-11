@@ -11,6 +11,14 @@ module.exports = async function (fastify, opts) {
   // register plugins from npm
   fastify.register(require('@fastify/formbody'))
 
+  // serve static files
+  fastify.register(require('@fastify/static'), {
+    root: path.join(__dirname, 'public'),
+    prefix: '/public/', // optional: default '/'
+  })
+
+  fastify.__dirname = __dirname
+
   // set the base url for later
   fastify.baseUrl = new URL(process.env.SERVER_URL)
 
