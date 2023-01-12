@@ -66,8 +66,8 @@ module.exports = class APObject {
     let pathname = new URL(this.id, process.env.SERVER_URL).pathname
     if(pathname.endsWith('/')) pathname = pathname.slice(0,-1)
     pathname = path.join(...pathname.split('/'))
-    pathname = path.join(process.env.DATA_PATH, pathname)
-    pathname += '.html'
+    pathname = path.join(process.env.STATIC_PATH, pathname)
+    pathname += '/index.html'
     return pathname
   }
 

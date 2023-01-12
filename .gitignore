@@ -60,3 +60,4 @@ profile*
 #env
 .env
 .data
+.static

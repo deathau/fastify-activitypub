@@ -13,9 +13,12 @@ module.exports = async function (fastify, opts) {
 
   // serve static files
   fastify.register(require('@fastify/static'), {
-    root: path.join(__dirname, 'public'),
-    prefix: '/public/', // optional: default '/'
+    root: path.join(__dirname, process.env.STATIC_PATH),
+    // prefix: (optional) default '/'
   })
+
+  // add a content type parser for activitystreams compatible json, but just parse it as json for now (don't bother with the JSON-LD stuff yet)
+  fastify.addContentTypeParser(['application/ld+json; profile="https://www.w3.org/ns/activitystreams"', 'application/activity+json'], { parseAs: 'string' }, fastify.getDefaultJsonParser('ignore', 'ignore'));
 
   fastify.__dirname = __dirname
 
