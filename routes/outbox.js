@@ -55,9 +55,11 @@ module.exports = async function (fastify, opts) {
       reply.status(201).header('Location', activity.object.id).send(activity)
         .then(async () => {
           // now save this activity data to the outbox for later reference
-          await activity.write()
+          await activity.write(fastify.fs)
           // and now, finally, we can perform the activity (or maybe add this to a queue of activities?)
-          await activity.process()
+          await activity.process(fastify.fs)
+          // and then commit whatever data was added to the repository
+          await activity.commitAndPush(fastify.fs)
         })
     }
     catch (e){

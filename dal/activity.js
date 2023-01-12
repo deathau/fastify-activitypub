@@ -57,20 +57,20 @@ module.exports = class Activity extends APObject {
     }
   }
 
-  async process() {
-    let obj = await APObject.get(this.object)
+  async process(fs) {
+    let obj = await APObject.get(this.object, fs)
     switch(this.type.toLowerCase()) {
       case 'create':
         if(obj) throw 'object already exists'
-        else new APObject(this.object).write()
+        else new APObject(this.object).write(fs)
         break;
       case 'delete':
         if(!obj) throw 'object does not exist'
-        else obj.delete()
+        else obj.delete(fs)
         break;
       case 'update':
         if(!obj) throw 'object does not exist'
-        else obj.update(this.object)
+        else obj.update(this.object, fs)
     }
 
     this.send()

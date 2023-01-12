@@ -1,11 +1,11 @@
-const simpleGit = require('simple-git')
-const fs = require('fs')
-const path = require('path')
+const git = require("isomorphic-git");
+const http = require("isomorphic-git/http/node");
+const path = require('path').posix
 const matter = require('gray-matter')
 const uuid = require('short-uuid')
 const ActivityTypes = require('../const/activityTypes.json')
 
-async function createDirIfNotExists(path) {
+async function createDirIfNotExists(fs, path) {
   try { if(!(fs.statSync(path)).isDirectory()) throw { code: "ENOENT" } }
   catch(err) { if(err.code === "ENOENT") fs.mkdirSync(path, { recursive: true }) }
 }
@@ -77,10 +77,10 @@ module.exports = class APObject {
     return segments.pop() || segments.pop(); // Handle potential trailing slash
   }
 
-  async write() {
+  async write(fs) {
     
-    const dir = this.datapath.slice(0, -4 - this.uuid.length)
-    await createDirIfNotExists(dir)
+    const dir = path.join(process.env.rootdir, path.dirname(this.datapath))
+    await createDirIfNotExists(fs, dir)
 
     // bto and bcc should not be saved
     const output = Object.assign({}, this)
@@ -90,24 +90,54 @@ module.exports = class APObject {
     delete output.content
 
     const mdContent = matter.stringify(body || '', output, { noRefs: true })
-    fs.writeFileSync(this.datapath, mdContent)
+    fs.writeFileSync(path.join(process.env.rootdir, this.datapath), mdContent)
+    await git.add({ fs, dir: process.env.rootdir, filepath: this.datapath })
   }
 
-  async delete() {
-    if(!fs.existsSync(this.datapath)) throw "file does not exist"
-    else fs.rmSync(this.datapath)
+  async delete(fs) {
+    if(!fs.existsSync(path.join(process.env.rootdir, this.datapath))) throw "file does not exist"
+    else fs.rmSync(path.join(process.env.rootdir, this.datapath))
   }
 
-  async update(newObject) {
+  async update(newObject, fs) {
     for (const [key, value] of Object.entries(newObject)) {
       this[key] = value
     }
-    await this.write()
+    await this.write(fs)
   }
 
-  static async get(id) {
+  async commit(fs) {
+    this.ensureId()
+    await git.commit({
+      fs,
+      dir: process.env.rootdir,
+      author: { name: 'commit-bot', email: 'commit-bot@death.id.au' },
+      message: `${this.id}\n${this.summary || ''}` 
+    })
+  }
+
+  async commitAndPush(fs) {
+    await this.commit(fs)
+
+    let commits = await git.log({
+      fs,
+      dir: process.env.rootdir,
+      depth: 5,
+      ref: 'main'
+    })
+
+    const pushResult = await git.push({
+      fs,
+      http,
+      dir: process.env.rootdir,
+      remote: 'origin',
+      ref: 'main',
+    })
+  }
+
+  static async get(id, fs) {
     if(isObject(id) && id.id) id = id.id
-    let datapath = new APObject({ id }).datapath
+    let datapath = path.join(process.env.rootdir, new APObject({ id }).datapath)
     try{
       if(fs.existsSync(datapath)) {
         const file = matter(fs.readFileSync(datapath))

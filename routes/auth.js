@@ -1,5 +1,29 @@
+const fs = require('fs')
+const os = require('os')
+const path = require('path')
 const IndieAuth = require('indieauth-helper')
 const Actor = require("../dal/actor")
+
+function tmpWriteFileSync(name, data, options = undefined) {
+  return fs.writeFileSync(path.join(os.tmpdir(), name), data, options)
+}
+
+function tmpReadFileSync(name, options = undefined) {
+  return fs.readFileSync(path.join(os.tmpdir(), name), options)
+}
+
+function tmpWriteJsonSync(name, data, options = undefined) {
+  return fs.writeFileSync(path.join(os.tmpdir(), name), JSON.stringify(data, null, 2), options)
+}
+
+function tmpReadJsonSync(name, options = undefined) {
+  return JSON.parse(fs.readFileSync(path.join(os.tmpdir(), name), options))
+}
+function tmpReadJsonAndDeleteSync(name, options = undefined) {
+  const obj = tmpReadJsonSync(name, options)
+  fs.rmSync(path.join(os.tmpdir(), name))
+  return obj
+}
 
 module.exports = async function (fastify, opts) {
 
@@ -16,8 +40,9 @@ module.exports = async function (fastify, opts) {
     // get the auth url for 'me' (also populates the token endpoint)
     const authUrl = await auth.getAuthUrl('code', ['create', 'update'])
 
-    // save the auth options to the global actor so we can validate against them
-    Actor.WriteActor({ ...fastify.actor, auth: auth.options })
+    // save the auth options so we can validate against them
+    tmpWriteJsonSync('tmpauth', { ...auth.options, secret: undefined })
+    //Actor.WriteActor({ ...fastify.actor, auth: auth.options }, fastify.fs)
 
     // redirect to the auth endpoint
     reply.redirect(authUrl)
@@ -25,9 +50,10 @@ module.exports = async function (fastify, opts) {
 
   fastify.get('/auth', async function (request, reply) {
     // now we're back from the auth endpoint, it's time to validate and get a token
+    const tmpauth = tmpReadJsonAndDeleteSync('tmpauth')
 
-    if(!fastify.actor?.auth) return reply.code(500).send("Couldn't load actor auth data. Please try logging in again")
-    const auth = new IndieAuth({ ...fastify.actor.auth, secret: process.env.SECRET })
+    if(!tmpauth) return reply.code(500).send("Couldn't load actor auth data. Please try logging in again")
+    const auth = new IndieAuth({ ...tmpauth, secret: process.env.SECRET })
 
     let err, token
 
@@ -62,7 +88,7 @@ module.exports = async function (fastify, opts) {
         // populate any other details (name, etc) from profile
         await actor.populateDetails()
         // write the actor back to file so we don't lose it
-        await actor.write()
+        await actor.write(fastify.fs)
 
         // set the global actor
         fastify.actor = actor

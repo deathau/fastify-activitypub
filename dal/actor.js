@@ -1,8 +1,8 @@
-const fs = require('fs')
 const IndieAuth = require('indieauth-helper')
 const { mf2 } = require("microformats-parser");
-
-const ACTOR_FILE = './.data/actor.json'
+const git = require("isomorphic-git");
+const http = require("isomorphic-git/http/node");
+const path = require('path').posix
 
 module.exports = class Actor {
 
@@ -44,18 +44,22 @@ module.exports = class Actor {
     return this
   }
 
-  async read() {
-    Object.assign(this, await Actor.ReadActor())
+  async read(fs) {
+    Object.assign(this, await Actor.ReadActor(fs))
     return this
   }
 
-  async write() {
-    return await Actor.WriteActor(this)
+  async write(fs) {
+    return await Actor.WriteActor(this, fs)
   }
 
-  static async ReadActor() {
+  static get path() {
+    return path.join(process.env.rootdir, process.env.DATA_PATH, 'actor.json')
+  }
+
+  static async ReadActor(fs) {
     try{
-      const data = fs.readFileSync(ACTOR_FILE, 'utf8')
+      const data = fs.readFileSync(Actor.path, 'utf8')
       return new Actor(JSON.parse(data))
     }
     catch(err) {
@@ -63,8 +67,31 @@ module.exports = class Actor {
     }
   }
 
-  static async WriteActor(actor) {
+  static async WriteActor(actor, fs) {
     if(actor.auth?.secret) delete actor.auth.secret // just in case
-    fs.writeFileSync(ACTOR_FILE, JSON.stringify(actor, null, 2))
+    fs.writeFileSync(Actor.path, JSON.stringify(actor, null, 2))
+    await git.add({ fs, dir: process.env.rootdir, filepath: path.relative(process.env.rootdir, Actor.path) })
+    Actor.commitAndPush(fs)
+  }
+
+  static async commit(fs) {
+    await git.commit({
+      fs,
+      dir: process.env.rootdir,
+      author: { name: 'commit-bot', email: 'commit-bot@death.id.au' },
+      message: `updated actor information on login` 
+    })
+  }
+
+  static async commitAndPush(fs) {
+    await Actor.commit(fs)
+
+    await git.push({
+      fs,
+      http,
+      dir: process.env.rootdir,
+      remote: 'origin',
+      ref: 'main',
+    })
   }
 }
