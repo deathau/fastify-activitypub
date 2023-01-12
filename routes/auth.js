@@ -91,7 +91,7 @@ module.exports = async function (fastify, opts) {
         await actor.write(fastify.fs)
 
         // set the global actor
-        fastify.actor = actor
+        fastify.actor = new Actor(actor)
       }
       catch(e){
         err = e

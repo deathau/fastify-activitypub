@@ -2,6 +2,7 @@
 
 const fp = require('fastify-plugin')
 const IndieAuth = require('indieauth-helper')
+const Actor = require('../dal/actor')
 
 // the use of fastify-plugin is required to be able
 // to export the decorators to the outer scope
@@ -14,6 +15,7 @@ module.exports = fp(async function (fastify, opts) {
   fastify.decorate("authenticate", async function(request, reply) {
     try {
       // set up the auth object from saved actor info
+      if(!fastify.actor?.auth?.me) fastify.actor = await Actor.ReadActor(fastify.fs)
       const auth = new IndieAuth(fastify.actor.auth)
       // if we don't have a token endpoint saved, call the function to go get it
       if(!auth.options.tokenEndpoint) auth.getAuthUrl()

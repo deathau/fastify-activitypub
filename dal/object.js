@@ -10,12 +10,8 @@ async function createDirIfNotExists(fs, path) {
   catch(err) { if(err.code === "ENOENT") fs.mkdirSync(path, { recursive: true }) }
 }
 
-function isObject(obj) {
-  return obj === Object(obj);
-}
-
-function objectUrl(obj) {
-  return isObject(obj) ? obj.id || obj.url : object;
+function isString(myVar) {
+  return typeof myVar === 'string' || myVar instanceof String
 }
 
 module.exports = class APObject {
@@ -136,8 +132,9 @@ module.exports = class APObject {
   }
 
   static async get(id, fs) {
-    if(isObject(id) && id.id) id = id.id
-    let datapath = path.join(process.env.rootdir, new APObject({ id }).datapath)
+    let obj = isString(id) ? new APObject({ id }) : new APObject(id)
+    obj.ensureId()
+    let datapath = path.join(process.env.rootdir, obj.datapath)
     try{
       if(fs.existsSync(datapath)) {
         const file = matter(fs.readFileSync(datapath))
